@@ -1,11 +1,6 @@
-## My Project
+## Automatically block suspicious traffic with AWS Network Firewall and Amazon GuardDuty
 
-TODO: Fill this README out!
-
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+This repository contains sample code referenced in the blog post "Automatically block suspicious traffic with AWS Network Firewall and Amazon GuardDuty".  
 
 ## Security
 
