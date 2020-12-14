@@ -29,6 +29,10 @@ Parameters:
     Description: Email address to receive notifications. Must be a valid email address.
     Type: String
     AllowedPattern: ^(?:[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+\/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])$
+  ExistingRuleGroup:
+    Type: String
+    Default: 'False'
+    Description: Name of existing Rule Group. Enter if there is an existing AWS Network Firewall rulegroup to use. This must be in region. Leave set to False for creation of new rule group.
   RulegroupPriority:
     Description: Priority for rules created by this solution within AWS Network Firewall's Rule Group.  
     Type: Number
@@ -36,12 +40,20 @@ Parameters:
     MinValue: 1
     MaxValue: 65535
     ConstraintDescription: Valid Range - minimum value of 1, maximum value of 65535
+  RulegroupCapacity:
+    Description: Capacity for a created rule group.  Each block rule takes 2 units of capacity.  Only used if creating a new rule grop (ExistingRuleGroup=False).
+    Type: Number
+    Default: 1000
+    MinValue: 100
+    MaxValue: 10000
+    ConstraintDescription: Valid Range - minimum value of 100, maximum value of 10000.  
   PruningFrequency:
-    Description: How often (how many minutes apart) will pruning get executed.  The default is every 15 minutes.
+    Description: How often (how many minutes apart) the pruning check gets executed.  The default is every 15 minutes.
     Type: Number
     Default: 15
     MinValue: 5
     MaxValue: 180
+    ConstraintDescription: Valid Range - minimum value of 5, maximum value of 180.  
   ArtifactsBucket:
     Description: S3 bucket with artifact files (Lambda layer)
     Type: String
@@ -53,10 +65,6 @@ Parameters:
     Type: String
     Default: artifacts/
     AllowedPattern: ^[0-9a-zA-Z-/]*$
-  ExistingRuleGroup:
-    Type: String
-    Default: 'False'
-    Description: Name of existing Rule Group. Enter if there is an existing AWS Network Firewall rulegroup to use. This must be in region. Leave set to False for creation of new rule group.
 
 
 Metadata:
@@ -66,8 +74,9 @@ Metadata:
         default: GuardDuty to Network Firewall Configuration
       Parameters:
       - AdminEmail
-      - RulegroupPriority
       - ExistingRuleGroup
+      - RulegroupCapacity
+      - RulegroupPriority
       - Retention
       - PruningFrequency
     - Label:
@@ -108,7 +117,7 @@ Resources:
     Properties:
       RuleGroupName: GuardDutytoFirewallRulegroup
       Type: STATELESS
-      Capacity: 1000
+      Capacity: !Ref RulegroupCapacity
       Description: Rulegroup managed by GuardDuty-to-NetworkFirewall solution
       Tags:
         - Key: ManagedBy
