@@ -36,6 +36,12 @@ Parameters:
     MinValue: 1
     MaxValue: 65535
     ConstraintDescription: Valid Range - minimum value of 1, maximum value of 65535
+  PruningFrequency:
+    Description: How often (how many minutes apart) will pruning get executed.  The default is every 15 minutes.
+    Type: Number
+    Default: 15
+    MinValue: 5
+    MaxValue: 180
   ArtifactsBucket:
     Description: S3 bucket with artifact files (Lambda layer)
     Type: String
@@ -60,9 +66,10 @@ Metadata:
         default: GuardDuty to Network Firewall Configuration
       Parameters:
       - AdminEmail
-      - Retention
       - RulegroupPriority
       - ExistingRuleGroup
+      - Retention
+      - PruningFrequency
     - Label:
         default: Artifact Configuration
       Parameters:
@@ -116,7 +123,7 @@ Resources:
                       - AddressDefinition: 127.0.0.1/32
                   Actions:
                     - 'aws:drop'
-                Priority: 1
+                Priority: !Ref RulegroupPriority
 
 
   # DynamoDB table that holds data about remediations taken, 
@@ -772,7 +779,7 @@ Resources:
     Type: "AWS::Events::Rule"
     Properties:
       Description: "ScheduledPruningRule"
-      ScheduleExpression: "rate(5 minutes)"
+      ScheduleExpression: !Sub "rate(${PruningFrequency} minutes)"
       State: "ENABLED"
       Targets:
         -
@@ -1190,6 +1197,9 @@ Resources:
       
 
 Outputs:
+  GuardDutytoFirewallStateMachine:
+    Description: Step Functions State Machine orchestrating blocking of traffic and adding new rules to the AWS Network Firewall rule group
+    Value: !Sub https://console.aws.amazon.com/states/home?region=${AWS::Region}#/statemachines/view/${GuardDutytoFirewallStateMachine}
   RuleGroupArn:
     Description: Stateless AWS Network Firewall Rule Group ARN that is managed by this solution
     Value: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
