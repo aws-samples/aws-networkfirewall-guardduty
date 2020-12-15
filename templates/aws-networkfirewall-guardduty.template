@@ -43,7 +43,7 @@ Parameters:
   RulegroupCapacity:
     Description: Capacity for a created rule group.  Each block rule takes 2 units of capacity.  Only used if creating a new rule grop (ExistingRuleGroup=False).
     Type: Number
-    Default: 1000
+    Default: 2000
     MinValue: 100
     MaxValue: 10000
     ConstraintDescription: Valid Range - minimum value of 100, maximum value of 10000.  
@@ -115,7 +115,7 @@ Resources:
     Condition: CreateRulegroup
     Type: 'AWS::NetworkFirewall::RuleGroup'
     Properties:
-      RuleGroupName: GuardDutytoFirewallRulegroup
+      RuleGroupName: !Join ["-" , [!Ref 'AWS::StackName', BlockList]]
       Type: STATELESS
       Capacity: !Ref RulegroupCapacity
       Description: Rulegroup managed by GuardDuty-to-NetworkFirewall solution
@@ -423,12 +423,24 @@ Resources:
                       ]
                   },
                   'Priority': int(RuleGroupPriority)
+                  },
+                  {
+                  'RuleDefinition': {
+                      'MatchAttributes': {
+                          'Destinations': create_sources(block_list)
+                      },
+                      'Actions': [
+                          'aws:drop',
+                      ]
+                  },
+                  'Priority': int(RuleGroupPriority + 100)
                   }
+
               ]
               # Preserve current rules not used here in rule group by appending to new rule
               newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
               for r in newrgconfig:
-                  if int(RuleGroupPriority) != int(r['Priority']):
+                  if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriority + 100) ]:
                       newrules.append(r)
               #Update the rule group
               logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
@@ -1008,12 +1020,23 @@ Resources:
                       ]
                   },
                   'Priority': int(RuleGroupPriority)
+                  },
+                  {
+                  'RuleDefinition': {
+                      'MatchAttributes': {
+                          'Destinations': create_sources(block_list)
+                      },
+                      'Actions': [
+                          'aws:drop',
+                      ]
+                  },
+                  'Priority': int(RuleGroupPriority + 100)
                   }
               ]
               # Preserve current rules not used here in rule group by appending to new rule
               newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
               for r in newrgconfig:
-                  if int(RuleGroupPriority) != int(r['Priority']):
+                  if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriority + 100) ]:
                       newrules.append(r)
               #Update the rule group
               logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
