@@ -411,6 +411,7 @@ Resources:
           def update_rg_config(block_list):
               client = boto3.client('network-firewall')
               currgconfig = get_rg_config()
+              RuleGroupPriorityDst = int(RuleGroupPriority) + 100
               #Create new rule from dictionary of IPs CIDRS to block
               newrules = [
                   {
@@ -433,32 +434,36 @@ Resources:
                           'aws:drop',
                       ]
                   },
-                  'Priority': int(RuleGroupPriority + 100)
+                  'Priority': int(RuleGroupPriorityDst)
                   }
 
               ]
               # Preserve current rules not used here in rule group by appending to new rule
               newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
-              for r in newrgconfig:
-                  if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriority + 100) ]:
-                      newrules.append(r)
-              #Update the rule group
-              logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
-              response = client.update_rule_group(
-                  UpdateToken=currgconfig['UpdateToken'],
-                  RuleGroupArn=RuleGroupArn,
-                  RuleGroup={
-                      'RulesSource': {
-                          'StatelessRulesAndCustomActions': {
-                              'StatelessRules': 
-                                  newrules,
-                          }
-                      }
-                  },
-                  Type='STATELESS',
-                  Description='GD2NFW Blog Sample',
-                  DryRun=False
-              )
+              try:
+                for r in newrgconfig:
+                    if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriorityDst) ]:
+                        newrules.append(r)
+                #Update the rule group
+                logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
+                response = client.update_rule_group(
+                    UpdateToken=currgconfig['UpdateToken'],
+                    RuleGroupArn=RuleGroupArn,
+                    RuleGroup={
+                        'RulesSource': {
+                            'StatelessRulesAndCustomActions': {
+                                'StatelessRules': 
+                                    newrules,
+                            }
+                        }
+                    },
+                    Type='STATELESS',
+                    Description='GD2NFW Blog Sample',
+                    DryRun=False
+                )
+              except Exception as e:
+                logger.error('something went wrong')
+                raise  
           #
           #
           #======================================================================================================================
@@ -1008,6 +1013,7 @@ Resources:
           def update_rg_config(block_list):
               client = boto3.client('network-firewall')
               currgconfig = get_rg_config()
+              RuleGroupPriorityDst = int(RuleGroupPriority) + 100
               #Create new rule from dictionary of IPs CIDRS to block
               newrules = [
                   {
@@ -1030,31 +1036,35 @@ Resources:
                           'aws:drop',
                       ]
                   },
-                  'Priority': int(RuleGroupPriority + 100)
+                  'Priority': int(RuleGroupPriorityDst)
                   }
               ]
               # Preserve current rules not used here in rule group by appending to new rule
               newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
-              for r in newrgconfig:
-                  if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriority + 100) ]:
-                      newrules.append(r)
-              #Update the rule group
-              logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
-              response = client.update_rule_group(
-                  UpdateToken=currgconfig['UpdateToken'],
-                  RuleGroupArn=RuleGroupArn,
-                  RuleGroup={
-                      'RulesSource': {
-                          'StatelessRulesAndCustomActions': {
-                              'StatelessRules': 
-                                  newrules,
-                          }
-                      }
-                  },
-                  Type='STATELESS',
-                  Description='GD2NFW Blog Sample',
-                  DryRun=False
-              )
+              try:
+                for r in newrgconfig:
+                    if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriorityDst) ]:
+                        newrules.append(r)
+                #Update the rule group
+                logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
+                response = client.update_rule_group(
+                    UpdateToken=currgconfig['UpdateToken'],
+                    RuleGroupArn=RuleGroupArn,
+                    RuleGroup={
+                        'RulesSource': {
+                            'StatelessRulesAndCustomActions': {
+                                'StatelessRules': 
+                                    newrules,
+                            }
+                        }
+                    },
+                    Type='STATELESS',
+                    Description='GD2NFW Blog Sample',
+                    DryRun=False
+                )
+              except Exception as e:
+                logger.error('something went wrong')
+                raise  
           #
           #
           #======================================================================================================================
