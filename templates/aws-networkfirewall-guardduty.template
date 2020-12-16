@@ -29,10 +29,6 @@ Parameters:
     Description: Email address to receive notifications. Must be a valid email address.
     Type: String
     AllowedPattern: ^(?:[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+\/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])$
-  ExistingRuleGroup:
-    Type: String
-    Default: 'False'
-    Description: Name of existing Rule Group. Enter if there is an existing AWS Network Firewall rulegroup to use. This must be in region. Leave set to False for creation of new rule group.
   RulegroupPriority:
     Description: Priority for rules created by this solution within AWS Network Firewall's Rule Group.  
     Type: Number
@@ -74,7 +70,6 @@ Metadata:
         default: GuardDuty to Network Firewall Configuration
       Parameters:
       - AdminEmail
-      - ExistingRuleGroup
       - RulegroupCapacity
       - RulegroupPriority
       - Retention
@@ -95,11 +90,6 @@ Metadata:
       ArtifactsPrefix:
         default: S3 path to artifacts
 
-Conditions:
-  # Create rule group or use existing?
-  CreateRulegroup: !Equals [!Ref ExistingRuleGroup, 'False' ]
-
-
 Resources:
 
   ##########################################################################
@@ -112,7 +102,6 @@ Resources:
   #AWS Network Firewall Rule Group that will be managed by this solution.  
   #This Rule Group can be used across multiple Network Firewall Policies
   GuardDutytoFirewallRulegroup:
-    Condition: CreateRulegroup
     Type: 'AWS::NetworkFirewall::RuleGroup'
     Properties:
       RuleGroupName: !Join ["-" , [!Ref 'AWS::StackName', BlockList]]
@@ -373,7 +362,7 @@ Resources:
       Runtime: python3.8
       Environment:
         Variables:
-          FIREWALLRULEGROUP: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
+          FIREWALLRULEGROUP: !Ref GuardDutytoFirewallRulegroup
           RULEGROUPPRI: !Ref  RulegroupPriority
       Timeout: 60
       Code:
@@ -516,8 +505,7 @@ Resources:
                 Action:
                   - network-firewall:DescribeRuleGroup
                   - network-firewall:UpdateRuleGroup
-                Resource: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
-
+                Resource: !Ref GuardDutytoFirewallRulegroup
 
 
   # records new entries in DynamoDB table, including IP addresses of suspicous hosts and timestamps
@@ -974,7 +962,7 @@ Resources:
         - !Ref Boto3Layer
       Environment:
         Variables:
-          FIREWALLRULEGROUP: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
+          FIREWALLRULEGROUP: !Ref GuardDutytoFirewallRulegroup
           RULEGROUPPRI: !Ref  RulegroupPriority
       Runtime: python3.8
       Timeout: 60
@@ -1115,7 +1103,7 @@ Resources:
                 Action:
                   - network-firewall:DescribeRuleGroup
                   - network-firewall:UpdateRuleGroup
-                Resource: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
+                Resource: !Ref GuardDutytoFirewallRulegroup
 
 
   # removes old records from the DynamoDB table
@@ -1244,4 +1232,4 @@ Outputs:
     Value: !Sub https://console.aws.amazon.com/states/home?region=${AWS::Region}#/statemachines/view/${GuardDutytoFirewallStateMachine}
   RuleGroupArn:
     Description: Stateless AWS Network Firewall Rule Group ARN that is managed by this solution
-    Value: !If [ CreateRulegroup, !Ref GuardDutytoFirewallRulegroup, !Sub 'arn:aws:network-firewall:${AWS::Region}:${AWS::AccountId}:stateless-rulegroup/${ExistingRuleGroup}']
+    Value: !Ref GuardDutytoFirewallRulegroup
