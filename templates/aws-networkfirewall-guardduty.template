@@ -57,13 +57,13 @@ Parameters:
   ArtifactsBucket:
     Description: S3 bucket with artifact files (Lambda layer)
     Type: String
-    Default: atomictesting123
+    Default: awsiammedia
     AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
     ConstraintDescription: ArtifactsBucket S3 bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
   ArtifactsPrefix:
     Description: Path in the S3 bucket containing artifact files
     Type: String
-    Default: artifacts/
+    Default: public/sample/
     AllowedPattern: ^[0-9a-zA-Z-/]*$
 
 
