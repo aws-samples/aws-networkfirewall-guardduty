@@ -104,7 +104,7 @@ Resources:
   GuardDutytoFirewallRulegroup:
     Type: 'AWS::NetworkFirewall::RuleGroup'
     Properties:
-      RuleGroupName: !Join ["-" , [!Ref 'AWS::StackName', BlockList]]
+      RuleGroupName: !Sub ${AWS::StackName}-BlockList
       Type: STATELESS
       Capacity: !Ref RulegroupCapacity
       Description: Rulegroup managed by GuardDuty-to-NetworkFirewall solution
@@ -114,6 +114,12 @@ Resources:
       RuleGroup:
         RulesSource:
           StatelessRulesAndCustomActions:
+            CustomActions:
+              - ActionName: !Sub ${AWS::StackName}GD2NFW
+                ActionDefinition:
+                  PublishMetricAction:
+                    Dimensions:
+                      - Value: !Sub ${AWS::StackName}-GD2NFW
             StatelessRules:
               - RuleDefinition:
                   MatchAttributes:
