@@ -115,11 +115,11 @@ Resources:
         RulesSource:
           StatelessRulesAndCustomActions:
             CustomActions:
-              - ActionName: !Sub ${AWS::StackName}GD2NFW
+              - ActionName: 'GuardDutytoFirewall'
                 ActionDefinition:
                   PublishMetricAction:
                     Dimensions:
-                      - Value: !Sub ${AWS::StackName}-GD2NFW
+                      - Value: !Sub ${AWS::StackName}
             StatelessRules:
               - RuleDefinition:
                   MatchAttributes:
@@ -166,6 +166,190 @@ Resources:
         S3Key: !Sub ${ArtifactsPrefix}boto3_1.16.23_layer.zip
       Description: boto3 version 1.16.23
       LayerName: boto3
+
+
+  # Lambda function that blocks suspicious remote hosts
+  # by updating a RuleGroup for the AWS Network Firewall 
+  UpdateNetworkFirewallRuleGroupFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt [ UpdateNetworkFirewallRuleGroupLambdaExecutionRole, Arn ]
+      Layers: 
+        - !Ref Boto3Layer
+      Runtime: python3.8
+      Environment:
+        Variables:
+          FIREWALLRULEGROUP: !Ref GuardDutytoFirewallRulegroup
+          RULEGROUPPRI: !Ref  RulegroupPriority
+          CUSTOMACTIONNAME: 'GuardDutytoFirewall'
+          CUSTOMACTIONVALUE: !Sub ${AWS::StackName}
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import os, json, logging
+          import boto3
+          from botocore.exceptions import ClientError
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          #
+          RuleGroupArn = os.environ['FIREWALLRULEGROUP']
+          RuleGroupPriority = os.environ['RULEGROUPPRI']
+          CustomActionName =  os.environ['CUSTOMACTIONNAME']
+          CustomActionValue =  os.environ['CUSTOMACTIONVALUE']
+          #
+          #
+          #
+          def create_sources(block_list):
+              response = []
+              for i in block_list:
+                  response.append({'AddressDefinition': str(i['IP']) + '/32' })
+              return response
+          #
+          def get_rg_config():
+              client = boto3.client('network-firewall')
+              response = client.describe_rule_group(
+                  RuleGroupArn=RuleGroupArn,
+                  Type='STATELESS'
+              )
+              return response
+          #
+          def update_rg_config(block_list):
+              client = boto3.client('network-firewall')
+              currgconfig = get_rg_config()
+              RuleGroupPriorityDst = int(RuleGroupPriority) + 100
+              #Create new rule from dictionary of IPs CIDRS to block
+              newrules = [
+                  {
+                  'RuleDefinition': {
+                      'MatchAttributes': {
+                          'Sources': create_sources(block_list)
+                      },
+                      'Actions': [
+                          'aws:drop',
+                          CustomActionName
+                      ]
+                  },
+                  'Priority': int(RuleGroupPriority)
+                  },
+                  {
+                  'RuleDefinition': {
+                      'MatchAttributes': {
+                          'Destinations': create_sources(block_list)
+                      },
+                      'Actions': [
+                          'aws:drop',
+                          CustomActionName
+                      ]
+                  },
+                  'Priority': int(RuleGroupPriorityDst)
+                  }
+              ]
+              # Custom Actions provide CloudWatch metrics
+              customactions = [
+                  {
+                      'ActionName': CustomActionName,
+                      'ActionDefinition': {
+                          'PublishMetricAction': {
+                              'Dimensions': [
+                                  {
+                                      'Value': CustomActionValue
+                                  }
+                              ]
+                          }
+                      }
+                  }
+              ]
+              # Preserve current rules not used here in rule group by appending to new rule
+              newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
+              try:
+                for r in newrgconfig:
+                    if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriorityDst) ]:
+                        newrules.append(r)
+                #Update the rule group
+                logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
+                response = client.update_rule_group(
+                    UpdateToken=currgconfig['UpdateToken'],
+                    RuleGroupArn=RuleGroupArn,
+                    RuleGroup={
+                        'RulesSource': {
+                            'StatelessRulesAndCustomActions': {
+                                'StatelessRules': 
+                                    newrules,
+                                'CustomActions':
+                                    customactions
+                            }
+                        }
+                    },
+                    Type='STATELESS',
+                    Description='GD2NFW Blog Sample',
+                    DryRun=False
+                )
+              except Exception as e:
+                logger.error('something went wrong')
+                raise  
+          #
+          #
+          #
+          # Lambda handler
+          def handler(event, context):
+              logger.info("log -- Event: %s " % json.dumps(event))
+              # retrieve a list of IPs delivered from the previous step in the State Machine
+              block_list = event['IPList']
+              #if empty, provide a fake entry - rule group update requires at least one entry
+              if len(block_list) == 0:
+                block_list = [{'IP':'127.0.0.1'}]
+              # update the AWS Network Firewall Rule Group
+              # replace with the updated list of IPs
+              update_rg_config(block_list)
+              #
+              # check if the function was called for blocking or pruning
+              if ('HostIp' in event):
+                  # blocking completed, pass the data on to the next step
+                  return { 
+                      "HostIp": event['HostIp'],
+                      "FindingId": event['FindingId'],
+                      "Timestamp": event['Timestamp'],
+                      "AccountId": event['AccountId'],
+                      "Region": event['Region']
+                  }
+              else:
+                  # this was a pruning action
+                  return { 
+                    "PruningSuccessful": True
+                  }
+
+
+
+  # Permissions for the Lambda function to interact with 
+  # AWS Network Firewall service to update a RuleGroup
+  UpdateNetworkFirewallRuleGroupLambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: UpdateNetworkFirewallRuleGroupLambdaExecutionRolePolicy 
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+              - Effect: Allow
+                Action:
+                  - network-firewall:DescribeRuleGroup
+                  - network-firewall:UpdateRuleGroup
+                Resource: !Ref GuardDutytoFirewallRulegroup
+
 
   
   ##########################################################################
@@ -234,7 +418,7 @@ Resources:
             },
             "Block Traffic": {
               "Type": "Task",
-              "Resource": "${GuardDutytoFirewallBlockLambdaFunction.Arn}",
+              "Resource": "${UpdateNetworkFirewallRuleGroupFunction.Arn}",
               "Retry": [
                 {
                   "ErrorEquals": [
@@ -306,8 +490,8 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: 
-                  - !GetAtt GuardDutytoFirewallBlockLambdaFunction.Arn
                   - !GetAtt GuardDutytoFirewallRecordLambdaFunction.Arn
+                  - !GetAtt UpdateNetworkFirewallRuleGroupFunction.Arn
               - Effect: Allow
                 Action:
                 - sns:Publish
@@ -354,164 +538,6 @@ Resources:
                   - states:StartExecution
                 Resource:
                   - !GetAtt GuardDutytoFirewallStateMachine.Arn
-
-
-  # Lambda function that blocks suspicious remote hosts
-  # by updating a RuleGroup for the AWS Network Firewall 
-  GuardDutytoFirewallBlockLambdaFunction:
-    Type: "AWS::Lambda::Function"
-    Properties:
-      Handler: "index.handler"
-      Role: !GetAtt [ GuardDutytoFirewallBlockLambdaExecutionRole, Arn ]
-      Layers: 
-        - !Ref Boto3Layer
-      Runtime: python3.8
-      Environment:
-        Variables:
-          FIREWALLRULEGROUP: !Ref GuardDutytoFirewallRulegroup
-          RULEGROUPPRI: !Ref  RulegroupPriority
-      Timeout: 60
-      Code:
-        ZipFile: |
-          import os, json, logging
-          import boto3
-          from botocore.exceptions import ClientError
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-          #======================================================================================================================
-          # Variables
-          #======================================================================================================================
-          RuleGroupArn = os.environ['FIREWALLRULEGROUP']
-          RuleGroupPriority = os.environ['RULEGROUPPRI']
-          #
-          #
-          #======================================================================================================================
-          # Functions
-          #======================================================================================================================
-          #
-          def create_sources(block_list):
-              response = []
-              for i in block_list:
-                  response.append({'AddressDefinition': str(i['IP']) + '/32' })
-              return response
-          #
-          def get_rg_config():
-              client = boto3.client('network-firewall')
-              response = client.describe_rule_group(
-                  RuleGroupArn=RuleGroupArn,
-                  Type='STATELESS'
-              )
-              return response
-          #
-          def update_rg_config(block_list):
-              client = boto3.client('network-firewall')
-              currgconfig = get_rg_config()
-              RuleGroupPriorityDst = int(RuleGroupPriority) + 100
-              #Create new rule from dictionary of IPs CIDRS to block
-              newrules = [
-                  {
-                  'RuleDefinition': {
-                      'MatchAttributes': {
-                          'Sources': create_sources(block_list)
-                      },
-                      'Actions': [
-                          'aws:drop',
-                      ]
-                  },
-                  'Priority': int(RuleGroupPriority)
-                  },
-                  {
-                  'RuleDefinition': {
-                      'MatchAttributes': {
-                          'Destinations': create_sources(block_list)
-                      },
-                      'Actions': [
-                          'aws:drop',
-                      ]
-                  },
-                  'Priority': int(RuleGroupPriorityDst)
-                  }
-
-              ]
-              # Preserve current rules not used here in rule group by appending to new rule
-              newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
-              try:
-                for r in newrgconfig:
-                    if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriorityDst) ]:
-                        newrules.append(r)
-                #Update the rule group
-                logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
-                response = client.update_rule_group(
-                    UpdateToken=currgconfig['UpdateToken'],
-                    RuleGroupArn=RuleGroupArn,
-                    RuleGroup={
-                        'RulesSource': {
-                            'StatelessRulesAndCustomActions': {
-                                'StatelessRules': 
-                                    newrules,
-                            }
-                        }
-                    },
-                    Type='STATELESS',
-                    Description='GD2NFW Blog Sample',
-                    DryRun=False
-                )
-              except Exception as e:
-                logger.error('something went wrong')
-                raise  
-          #
-          #
-          #======================================================================================================================
-          # Lambda Entry Point
-          #======================================================================================================================
-          #
-          # Lambda handler
-          def handler(event, context):
-              logger.info("log -- Event: %s " % json.dumps(event))
-              # retrieve a list of IPs delivered from the previous step in the State Machine
-              block_list = event['IPList']
-              # update the AWS Network Firewall Rule Group
-              # replace with the updated list of IPs
-              update_rg_config(block_list)
-              # pass the data on to the next step in the State Machine
-              return { 
-                  "HostIp": event['HostIp'],
-                  "FindingId": event['FindingId'],
-                  "Timestamp": event['Timestamp'],
-                  "AccountId": event['AccountId'],
-                  "Region": event['Region']
-              }
-
-
-
-  # Permissions for the Lambda function to interact with 
-  # AWS Network Firewall service to update a RuleGroup
-  GuardDutytoFirewallBlockLambdaExecutionRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: GuardDutytoFirewallBlockLambdaPolicy 
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*"
-              - Effect: Allow
-                Action:
-                  - network-firewall:DescribeRuleGroup
-                  - network-firewall:UpdateRuleGroup
-                Resource: !Ref GuardDutytoFirewallRulegroup
 
 
   # records new entries in DynamoDB table, including IP addresses of suspicous hosts and timestamps
@@ -735,7 +761,7 @@ Resources:
             },
             "Remove IPs from Firewall": {
               "Type": "Task",
-              "Resource": "${PruneFirewallLambdaFunction.Arn}",
+              "Resource": "${UpdateNetworkFirewallRuleGroupFunction.Arn}",
               "Parameters": {
                 "IPList.$": "$.IPList",
                 "comment": "Overwrites the RuleGrop with the updated list with expired IPs removed"
@@ -794,6 +820,38 @@ Resources:
         }
 
 
+  # permissions for the pruning state machine to invoke Lambda functions
+  # and send messages to the SNS topic
+  PruningStateMachineExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: PruningStateMachineExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: 
+                  - !GetAtt PruneGetExpiredIPsLambdaFunction.Arn
+                  - !GetAtt UpdateNetworkFirewallRuleGroupFunction.Arn
+                  - !GetAtt PruneRecordsLambdaFunction.Arn
+              - Effect: Allow
+                Action:
+                - sns:Publish
+                Resource: !Ref GuardDutyToFirewallSNSTopic
+
+
   # Scheduled trigger for pruning of AWS Network Firewall rules and DynamoDB records
   PruneOldEntriesSchedule:
     Type: "AWS::Events::Rule"
@@ -827,38 +885,6 @@ Resources:
                   - states:StartExecution
                 Resource:
                   - !GetAtt PruningStateMachine.Arn
-
-
-  # permissions for the pruning state machine to invoke Lambda functions
-  # and send messages to the SNS topic
-  PruningStateMachineExecutionRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service:
-                - !Sub states.${AWS::Region}.amazonaws.com
-            Action: "sts:AssumeRole"
-      Path: "/"
-      Policies:
-        - PolicyName: PruningStateMachineExecutionPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: 
-                  - !GetAtt PruneGetExpiredIPsLambdaFunction.Arn
-                  - !GetAtt PruneFirewallLambdaFunction.Arn
-                  - !GetAtt PruneRecordsLambdaFunction.Arn
-              - Effect: Allow
-                Action:
-                - sns:Publish
-                Resource: !Ref GuardDutyToFirewallSNSTopic
 
 
   # Checks DynamoDB table for expired records that need to be pruned
@@ -956,160 +982,6 @@ Resources:
                 - dynamodb:Scan
                 Resource: !GetAtt GuardDutytoFirewallDDBTable.Arn
 
-
-
-  # prunes old AWS Network Firewall records
-  PruneFirewallLambdaFunction:
-    Type: "AWS::Lambda::Function"
-    Properties:
-      Handler: "index.handler"
-      Role: !GetAtt [ PruneFirewallLambdaExecutionRole, Arn ]
-      Layers: 
-        - !Ref Boto3Layer
-      Environment:
-        Variables:
-          FIREWALLRULEGROUP: !Ref GuardDutytoFirewallRulegroup
-          RULEGROUPPRI: !Ref  RulegroupPriority
-      Runtime: python3.8
-      Timeout: 60
-      Code:
-        ZipFile: |
-          import os, json, logging
-          import boto3
-          from botocore.exceptions import ClientError
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-          #======================================================================================================================
-          # Variables
-          #======================================================================================================================
-          RuleGroupArn = os.environ['FIREWALLRULEGROUP']
-          RuleGroupPriority = os.environ['RULEGROUPPRI']
-          #
-          #
-          #======================================================================================================================
-          # Functions
-          #======================================================================================================================
-          #
-          def create_sources(block_list):
-              response = []
-              for i in block_list:
-                  response.append({'AddressDefinition': str(i['IP']) + '/32' })
-              return response
-          #
-          def get_rg_config():
-              client = boto3.client('network-firewall')
-              response = client.describe_rule_group(
-                  RuleGroupArn=RuleGroupArn,
-                  Type='STATELESS'
-              )
-              return response
-          #
-          def update_rg_config(block_list):
-              client = boto3.client('network-firewall')
-              currgconfig = get_rg_config()
-              RuleGroupPriorityDst = int(RuleGroupPriority) + 100
-              #Create new rule from dictionary of IPs CIDRS to block
-              newrules = [
-                  {
-                  'RuleDefinition': {
-                      'MatchAttributes': {
-                          'Sources': create_sources(block_list)
-                      },
-                      'Actions': [
-                          'aws:drop',
-                      ]
-                  },
-                  'Priority': int(RuleGroupPriority)
-                  },
-                  {
-                  'RuleDefinition': {
-                      'MatchAttributes': {
-                          'Destinations': create_sources(block_list)
-                      },
-                      'Actions': [
-                          'aws:drop',
-                      ]
-                  },
-                  'Priority': int(RuleGroupPriorityDst)
-                  }
-              ]
-              # Preserve current rules not used here in rule group by appending to new rule
-              newrgconfig = currgconfig['RuleGroup']['RulesSource']['StatelessRulesAndCustomActions']['StatelessRules']
-              try:
-                for r in newrgconfig:
-                    if int(r['Priority']) not in [ int(RuleGroupPriority), int(RuleGroupPriorityDst) ]:
-                        newrules.append(r)
-                #Update the rule group
-                logger.info("Update Rule Group ARN, %s." % RuleGroupArn)
-                response = client.update_rule_group(
-                    UpdateToken=currgconfig['UpdateToken'],
-                    RuleGroupArn=RuleGroupArn,
-                    RuleGroup={
-                        'RulesSource': {
-                            'StatelessRulesAndCustomActions': {
-                                'StatelessRules': 
-                                    newrules,
-                            }
-                        }
-                    },
-                    Type='STATELESS',
-                    Description='GD2NFW Blog Sample',
-                    DryRun=False
-                )
-              except Exception as e:
-                logger.error('something went wrong')
-                raise  
-          #
-          #
-          #======================================================================================================================
-          # Lambda Entry Point
-          #======================================================================================================================
-          #
-          # Lambda handler
-          def handler(event, context):
-              logger.info("log -- Event: %s " % json.dumps(event))
-              # retrieve a list of IPs delivered from the previous step in the State Machine
-              block_list = event['IPList']
-              #if the list is empty, provide a loopback IP as a fake entry - rule group update requires at least one piece of data
-              if len(block_list) == 0:
-                  block_list = [{'IP':'127.0.0.1'}]
-              # update the AWS Network Firewall Rule Group
-              # replace with the updated list of IPs
-              update_rg_config(block_list)
-              # successful completion of the pruning process
-              return { 
-                  "PruningSuccessful": True
-              }
-
-
-
-  # provides permissions to interact with the AWS Network Firewall
-  PruneFirewallLambdaExecutionRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: PruneFirewallLambdaPolicy 
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*"
-              - Effect: Allow
-                Action:
-                  - network-firewall:DescribeRuleGroup
-                  - network-firewall:UpdateRuleGroup
-                Resource: !Ref GuardDutytoFirewallRulegroup
 
 
   # removes old records from the DynamoDB table
