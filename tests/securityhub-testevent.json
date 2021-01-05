@@ -1,59 +1,58 @@
 {
   "version": "0",
-  "id": "cab084b3-6241-d898-ebc4-8a04d4a839a5",
+  "id": "12345abc-ca56-771b-cd1b-710550598e37",
   "detail-type": "Security Hub Findings - Imported",
   "source": "aws.securityhub",
   "account": "123456789012",
-  "time": "2020-12-13T16:30:11Z",
+  "time": "2021-01-05T01:20:33Z",
   "region": "us-east-1",
   "resources": [
-    "arn:aws:securityhub:us-east-1::product/aws/guardduty/arn:aws:guardduty:us-east-1:123456789012:detector/012abcdef345a1678a9bcd0ef12345a1/finding/7eba442370ea5fc5c29aa8a8e72a1d5d"
+    "arn:aws:securityhub:us-east-1::product/aws/guardduty/arn:aws:guardduty:us-east-1:123456789012:detector/012343feb722b1388a5ddc6dd4abcdef/finding/1234680e481690b44f7cc7e221abcdef"
   ],
   "detail": {
     "findings": [
       {
         "ProductArn": "arn:aws:securityhub:us-east-1::product/aws/guardduty",
         "Types": [
-          "TTPs/Command and Control/CryptoCurrency:EC2-BitcoinTool.B",
-          "Effects/Resource Consumption/CryptoCurrency:EC2-BitcoinTool.B"
+          "Software and Configuration Checks/Backdoor:EC2.C&CActivity.B"
         ],
-        "SourceUrl": "https://us-east-1.console.aws.amazon.com/guardduty/home?region=us-east-1#/findings?macros=current&fId=7eba442370ea5fc5c29aa8a8e72a1d5d",
-        "Description": "EC2 instance i-99999999 is communicating outbound with a known Bitcoin-related IP address 198.51.100.0.",
+        "SourceUrl": "https://us-east-1.console.aws.amazon.com/guardduty/home?region=us-east-1#/findings?macros=current&fId=1234680e481690b44f7cc7e221abcdef",
+        "Description": "EC2 instance i-99999999 is communicating outbound with a known Command & Control Server 198.51.100.0 located in GeneratedFindingCountryName.",
         "SchemaVersion": "2018-10-08",
-        "GeneratorId": "arn:aws:guardduty:us-east-1:123456789012:detector/012abcdef345a1678a9bcd0ef12345a1",
-        "FirstObservedAt": "2020-09-13T16:23:00.820Z",
-        "CreatedAt": "2020-09-13T16:23:00.820Z",
+        "GeneratorId": "arn:aws:guardduty:us-east-1:123456789012:detector/012343feb722b1388a5ddc6dd4abcdef",
+        "FirstObservedAt": "2021-01-05T01:15:01.549Z",
+        "CreatedAt": "2021-01-05T01:15:01.549Z",
         "RecordState": "ACTIVE",
-        "Title": "EC2 instance i-99999999 communicating with a known Bitcoin-related IP Address.",
+        "Title": "EC2 instance i-99999999 communicating outbound with C&C Server.",
         "Workflow": {
           "Status": "NEW"
         },
-        "LastObservedAt": "2020-12-13T16:25:14.621Z",
+        "LastObservedAt": "2021-01-05T01:15:01.549Z",
         "Severity": {
-          "Normalized": 60,
+          "Normalized": 80,
           "Label": "HIGH",
           "Product": 8
         },
-        "UpdatedAt": "2020-12-13T16:25:14.621Z",
+        "UpdatedAt": "2021-01-05T01:15:01.549Z",
         "WorkflowState": "NEW",
         "ProductFields": {
           "aws/guardduty/service/additionalInfo/threatListName": "GeneratedFindingThreatListName",
-          "aws/guardduty/service/action/networkConnectionAction/remotePortDetails/portName": "Unknown",
+          "aws/guardduty/service/action/networkConnectionAction/remotePortDetails/portName": "SMTP",
           "aws/guardduty/service/archived": "false",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/organization/asnOrg": "GeneratedFindingASNOrg",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/geoLocation/lat": "0",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/ipAddressV4": "198.51.100.0",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/geoLocation/lon": "0",
           "aws/guardduty/service/action/networkConnectionAction/blocked": "false",
-          "aws/guardduty/service/action/networkConnectionAction/remotePortDetails/port": "8333",
-          "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/country/countryName": "United States",
+          "aws/guardduty/service/action/networkConnectionAction/remotePortDetails/port": "25",
+          "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/country/countryName": "GeneratedFindingCountryName",
           "aws/guardduty/service/serviceName": "guardduty",
           "aws/guardduty/service/action/networkConnectionAction/localIpDetails/ipAddressV4": "10.0.0.23",
-          "aws/guardduty/service/detectorId": "06ba43feb722b1388a5ddc6dd41957e1",
+          "aws/guardduty/service/detectorId": "012343feb722b1388a5ddc6dd4abcdef",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/organization/org": "GeneratedFindingORG",
           "aws/guardduty/service/action/networkConnectionAction/connectionDirection": "OUTBOUND",
-          "aws/guardduty/service/eventFirstSeen": "2020-09-13T16:23:00.820Z",
-          "aws/guardduty/service/eventLastSeen": "2020-12-13T16:25:14.621Z",
+          "aws/guardduty/service/eventFirstSeen": "2021-01-05T01:15:01.549Z",
+          "aws/guardduty/service/eventLastSeen": "2021-01-05T01:15:01.549Z",
           "aws/guardduty/service/evidence/threatIntelligenceDetails.0_/threatListName": "GeneratedFindingThreatListName",
           "aws/guardduty/service/action/networkConnectionAction/localPortDetails/portName": "Unknown",
           "aws/guardduty/service/action/actionType": "NETWORK_CONNECTION",
@@ -61,17 +60,17 @@
           "aws/guardduty/service/resourceRole": "TARGET",
           "aws/guardduty/service/action/networkConnectionAction/localPortDetails/port": "2000",
           "aws/guardduty/service/action/networkConnectionAction/protocol": "TCP",
-          "aws/guardduty/service/count": "41",
+          "aws/guardduty/service/count": "1",
           "aws/guardduty/service/additionalInfo/sample": "true",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/organization/asn": "-1",
           "aws/guardduty/service/action/networkConnectionAction/remoteIpDetails/organization/isp": "GeneratedFindingISP",
           "aws/guardduty/service/evidence/threatIntelligenceDetails.0_/threatNames.0_": "GeneratedFindingThreatName",
-          "aws/securityhub/FindingId": "arn:aws:securityhub:us-east-1::product/aws/guardduty/arn:aws:guardduty:us-east-1:123456789012:detector/012abcdef345a1678a9bcd0ef12345a1/finding/7eba442370ea5fc5c29aa8a8e72a1d5d",
+          "aws/securityhub/FindingId": "arn:aws:securityhub:us-east-1::product/aws/guardduty/arn:aws:guardduty:us-east-1:123456789012:detector/012343feb722b1388a5ddc6dd4abcdef/finding/1234680e481690b44f7cc7e221abcdef",
           "aws/securityhub/ProductName": "GuardDuty",
           "aws/securityhub/CompanyName": "Amazon"
         },
         "AwsAccountId": "123456789012",
-        "Id": "arn:aws:guardduty:us-east-1:123456789012:detector/012abcdef345a1678a9bcd0ef12345a1/finding/7eba442370ea5fc5c29aa8a8e72a1d5d",
+        "Id": "arn:aws:guardduty:us-east-1:123456789012:detector/012343feb722b1388a5ddc6dd4abcdef/finding/1234680e481690b44f7cc7e221abcdef",
         "Resources": [
           {
             "Partition": "aws",
