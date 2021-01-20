@@ -50,17 +50,6 @@ Parameters:
     MinValue: 5
     MaxValue: 180
     ConstraintDescription: Valid Range - minimum value of 5, maximum value of 180.  
-  ArtifactsBucket:
-    Description: S3 bucket with artifact files (Lambda layer)
-    Type: String
-    Default: awsiammedia
-    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
-    ConstraintDescription: ArtifactsBucket S3 bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
-  ArtifactsPrefix:
-    Description: Path in the S3 bucket containing artifact files
-    Type: String
-    Default: public/sample/
-    AllowedPattern: ^[0-9a-zA-Z-/]*$
 
 
 Metadata:
@@ -155,19 +144,6 @@ Resources:
           Endpoint: !Ref AdminEmail
           Protocol: "email"
 
-  # Lambda layer with boto3 version that supports network-firewall
-  Boto3Layer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      CompatibleRuntimes:
-        - python3.8
-      Content:
-        S3Bucket: !Ref ArtifactsBucket
-        S3Key: !Sub ${ArtifactsPrefix}boto3_1.16.23_layer.zip
-      Description: boto3 version 1.16.23
-      LayerName: boto3
-
-
   # Lambda function that blocks suspicious remote hosts
   # by updating a RuleGroup for the AWS Network Firewall 
   UpdateNetworkFirewallRuleGroupFunction:
@@ -175,8 +151,6 @@ Resources:
     Properties:
       Handler: "index.handler"
       Role: !GetAtt [ UpdateNetworkFirewallRuleGroupLambdaExecutionRole, Arn ]
-      Layers: 
-        - !Ref Boto3Layer
       Runtime: python3.8
       Environment:
         Variables:
